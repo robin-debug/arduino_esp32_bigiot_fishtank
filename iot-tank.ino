@@ -165,8 +165,6 @@ void uploadCam()
 
 void loop()
 {
-    static bool isUpload = false;
-    static uint64_t last_upload_time = 0;
     static uint64_t last_wifi_check_time = 0;
 
     if (WiFi.status() == WL_CONNECTED) {
@@ -182,10 +180,12 @@ void loop()
         }
     }
 
-    //just uplaod once
-    if (!isUpload) {
-        isUpload = true;
-        //uploadImg();
-        uploadCam();
+    {
+        //upload image every 60s
+        static long lastTime = 0;
+        if(lastTime == 0 || millis() - lastTime > 60000) {
+            uploadCam();
+            lastTime = millis();
+        }
     }
 }
