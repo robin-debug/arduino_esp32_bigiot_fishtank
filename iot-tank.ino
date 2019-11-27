@@ -17,6 +17,10 @@
 
 #include "config.h"
 
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 8 * 3600;
+const int   daylightOffset_sec = 8 * 3600;
+
 BIGIOT bigiot;
 
 void eventCallback(const int devid, const int comid, const char *comstr, const char *slave)
@@ -25,6 +29,8 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
     Serial.printf(" device id:%d ,command id:%d command string:%s ,slave:%s\n", devid, comid, comstr, slave);
     if(0==strncmp(comstr,"cam",3))
         cmdCam(slave, comstr);
+    else if(0==strncmp(comstr,"time",4))
+        cmdTime(slave, comstr);
 }
 
 void cmdCam(const char *client, const char *comstr)
@@ -42,6 +48,25 @@ void cmdCam(const char *client, const char *comstr)
         framesize = FRAMESIZE_SVGA;
         uploadCam();         
     bigiot.sayToClient(client,"photo upload!");
+}
+
+void cmdTime(const char *client, const char *comstr)
+{
+    String msg = "";
+    if(0==strcmp(comstr,"time0")){
+        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+        msg += "sync time, ";
+    }
+    struct tm timeinfo;
+    if(getLocalTime(&timeinfo)) {
+        char buf[64] = {0};
+        strftime(buf, 64, "%A, %B %d %Y %H:%M:%S", &timeinfo);
+        msg+=buf;
+    } else
+        msg +="Failed to obtain time";
+    Serial.println(msg.c_str());
+    if(client)
+      bigiot.sayToClient(client,msg.c_str());
 }
 
 void disconnectCallback(BIGIOT &obj)
@@ -127,6 +152,10 @@ void setup()
     }
     Serial.println("connected: OK");
 
+    //init and get the time
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    printLocalTime();
+
     //Regist platform command event hander
     bigiot.eventAttach(eventCallback);
 
@@ -165,12 +194,11 @@ void uploadCam()
 
 void loop()
 {
-    static uint64_t last_wifi_check_time = 0;
-
     if (WiFi.status() == WL_CONNECTED) {
         //Wait for platform command release
         bigiot.handle();
     } else {
+        static uint64_t last_wifi_check_time = 0;
         uint64_t now = millis();
         // Wifi disconnection reconnection mechanism
         if (now - last_wifi_check_time > WIFI_TIMEOUT) {
@@ -183,9 +211,19 @@ void loop()
     {
         //upload image every 60s
         static long lastTime = 0;
-        if(lastTime == 0 || millis() - lastTime > 60000) {
+        long now = millis();
+        if(lastTime == 0 || now - lastTime > 60000) {
             uploadCam();
-            lastTime = millis();
+            lastTime = now;
+        }
+    }
+
+    {
+        static long lastTime = 0;
+        long now = millis();
+        if(lastTime == 0 || now - lastTime > 10000) {
+            cmdTime(null,"time");
+            lastTime = now;
         }
     }
 }
