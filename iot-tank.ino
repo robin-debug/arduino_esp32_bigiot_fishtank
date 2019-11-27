@@ -24,22 +24,24 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
     // You can handle the commands issued by the platform here.
     Serial.printf(" device id:%d ,command id:%d command string:%s ,slave:%s\n", devid, comid, comstr, slave);
     if(0==strncmp(comstr,"cam",3))
-    {
-        String s = slave;
-        framesize_t framesize = FRAMESIZE_VGA;
-        if(0==strcmp(comstr,"cam2048"))
-            framesize = FRAMESIZE_QXGA;
-        else if(0==strcmp(comstr,"cam1600"))
-            framesize = FRAMESIZE_UXGA;
-        else if(0==strcmp(comstr,"cam1280"))
-            framesize = FRAMESIZE_SXGA;
-        else if(0==strcmp(comstr,"cam1024"))
-            framesize = FRAMESIZE_XGA;
-        else if(0==strcmp(comstr,"cam800"))
-            framesize = FRAMESIZE_SVGA;
-            uploadCam();         
-        bigiot.sayToClient(s.c_str(),"photo upload!");
-    }
+        cmdCam(slave, comstr);
+}
+
+void cmdCam(const char *client, const char *comstr)
+{
+    framesize_t framesize = FRAMESIZE_VGA;
+    if(0==strcmp(comstr,"cam2048"))
+        framesize = FRAMESIZE_QXGA;
+    else if(0==strcmp(comstr,"cam1600"))
+        framesize = FRAMESIZE_UXGA;
+    else if(0==strcmp(comstr,"cam1280"))
+        framesize = FRAMESIZE_SXGA;
+    else if(0==strcmp(comstr,"cam1024"))
+        framesize = FRAMESIZE_XGA;
+    else if(0==strcmp(comstr,"cam800"))
+        framesize = FRAMESIZE_SVGA;
+        uploadCam();         
+    bigiot.sayToClient(client,"photo upload!");
 }
 
 void disconnectCallback(BIGIOT &obj)
