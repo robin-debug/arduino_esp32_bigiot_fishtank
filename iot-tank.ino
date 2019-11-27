@@ -21,6 +21,8 @@ const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 8 * 3600;
 const int   daylightOffset_sec = 8 * 3600;
 
+const int   LED_BUILTIN = 4;
+
 BIGIOT bigiot;
 
 void eventCallback(const int devid, const int comid, const char *comstr, const char *slave)
@@ -31,6 +33,10 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
         cmdCam(slave, comstr);
     else if(0==strncmp(comstr,"time",4))
         cmdTime(slave, comstr);
+    else if(0==strncmp(comstr,"light",5))
+        cmdLight(slave, comstr);
+    else
+        cmdHelp(slave, comstr);
 }
 
 void cmdCam(const char *client, const char *comstr)
@@ -66,7 +72,24 @@ void cmdTime(const char *client, const char *comstr)
         msg +="Failed to obtain time";
     Serial.println(msg.c_str());
     if(client)
-      bigiot.sayToClient(client,msg.c_str());
+        bigiot.sayToClient(client,msg.c_str());
+}
+
+void cmdLight(const char *client, const char *comstr)
+{
+    int value = LOW;
+    if(0==strcmp(comstr,"light1"))
+        value = HIGH;
+    digitalWrite(LED_BUILTIN,value);
+    String msg = "light set to ";
+    msg+=value;
+    bigiot.sayToClient(client,msg.c_str());
+}
+
+void cmdHelp(const char *client, const char *comstr)
+{
+    String msg = String("bad cmd ") + comstr + ",try cam or time or light";
+    bigiot.sayToClient(client,msg.c_str());
 }
 
 void disconnectCallback(BIGIOT &obj)
@@ -154,7 +177,7 @@ void setup()
 
     //init and get the time
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    printLocalTime();
+    cmdTime(NULL,"time");
 
     //Regist platform command event hander
     bigiot.eventAttach(eventCallback);
@@ -171,6 +194,8 @@ void setup()
         while (1);
     }
     Serial.println("Connected to BIGIOT");
+
+    pinMode(LED_BUILTIN, OUTPUT);
 }
 
 void uploadCam()
@@ -222,7 +247,7 @@ void loop()
         static long lastTime = 0;
         long now = millis();
         if(lastTime == 0 || now - lastTime > 10000) {
-            cmdTime(null,"time");
+            cmdTime(NULL,"time");
             lastTime = now;
         }
     }
