@@ -29,12 +29,21 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
 {
     // You can handle the commands issued by the platform here.
     Serial.printf(" device id:%d ,command id:%d command string:%s ,slave:%s\n", devid, comid, comstr, slave);
+    if(comid == PLAY)
+        comstr = "light1";//turn light on
+    else if(comid == STOP)
+        comstr = "light0";//trun light off
+    els if(comid == UP)
+        comstr = "cam";//take photo
+
     if(0==strncmp(comstr,"cam",3))
         cmdCam(slave, comstr);
     else if(0==strncmp(comstr,"time",4))
         cmdTime(slave, comstr);
     else if(0==strncmp(comstr,"light",5))
         cmdLight(slave, comstr);
+    else if(0==strncmp(comstr,"debug",5))
+        cmdDebug(slave, comstr);
     else
         cmdHelp(slave, comstr);
 }
@@ -52,7 +61,7 @@ void cmdCam(const char *client, const char *comstr)
         framesize = FRAMESIZE_XGA;
     else if(0==strcmp(comstr,"cam800"))
         framesize = FRAMESIZE_SVGA;
-        uploadCam();         
+    uploadCam();         
     bigiot.sayToClient(client,"photo upload!");
 }
 
@@ -83,6 +92,8 @@ void cmdLight(const char *client, const char *comstr)
     digitalWrite(LED_BUILTIN,value);
     String msg = "light set to ";
     msg+=value;
+    value = digitalRead(LED_BUILTIN);
+    msg+=value;
     bigiot.sayToClient(client,msg.c_str());
 }
 
@@ -90,6 +101,11 @@ void cmdHelp(const char *client, const char *comstr)
 {
     String msg = String("bad cmd ") + comstr + ",try cam or time or light";
     bigiot.sayToClient(client,msg.c_str());
+}
+
+void cmdDebug(const char *client, const char *comstr)
+{
+  
 }
 
 void disconnectCallback(BIGIOT &obj)
