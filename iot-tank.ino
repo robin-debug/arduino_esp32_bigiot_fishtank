@@ -22,6 +22,9 @@ const long  gmtOffset_sec = 8 * 3600;
 const int   daylightOffset_sec = 8 * 3600;
 
 const int   LED_BUILTIN = 4;
+//const int   PIN_OUTPUTA = 12;//noot boot,flash read err, 1000
+const int   PIN_OUTPUTA = 2;
+const int   PIN_OUTPUTB = 13;
 
 BIGIOT bigiot;
 
@@ -33,7 +36,7 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
         comstr = "light1";//turn light on
     else if(comid == STOP)
         comstr = "light0";//trun light off
-    els if(comid == UP)
+    else if(comid == UP)
         comstr = "cam";//take photo
 
     if(0==strncmp(comstr,"cam",3))
@@ -105,7 +108,27 @@ void cmdHelp(const char *client, const char *comstr)
 
 void cmdDebug(const char *client, const char *comstr)
 {
-  
+    //debug02h
+    String msg="";
+    String cmd = comstr;
+    if(cmd.length()==8){
+        cmd.remove(0,5);
+        if(cmd[2]=='l' || cmd[2]=='h'){
+            int value = HIGH;
+            if(cmd[2]=='l')
+                value = LOW;
+            cmd.remove(2);
+            long pin = cmd.toInt();
+            digitalWrite(pin,value);
+        }else{
+            msg = "bad value:";
+            msg += cmd[2];
+        }
+    }else{
+        msg="bad cmd len:";
+        msg+=comstr;
+    }
+    bigiot.sayToClient(client,msg.c_str());
 }
 
 void disconnectCallback(BIGIOT &obj)
@@ -179,6 +202,13 @@ void setup()
     Serial.begin(115200);
     delay(100);
 
+    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(PIN_OUTPUTA, OUTPUT);
+    pinMode(PIN_OUTPUTB, OUTPUT);
+    digitalWrite(LED_BUILTIN,HIGH);//led on
+    digitalWrite(PIN_OUTPUTA,HIGH);//relay off
+    digitalWrite(PIN_OUTPUTB,HIGH);//relay off
+    
     initCam();
 
     Serial.print("Connecting to ");
@@ -210,8 +240,7 @@ void setup()
         while (1);
     }
     Serial.println("Connected to BIGIOT");
-
-    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN,LOW);//led off
 }
 
 void uploadCam()
@@ -264,6 +293,26 @@ void loop()
         long now = millis();
         if(lastTime == 0 || now - lastTime > 10000) {
             cmdTime(NULL,"time");
+            lastTime = now;
+        }
+    }
+
+    {
+        static long lastTime = 0;
+        long now = millis();
+        if(lastTime == 0 || now - lastTime > 3000) {
+            int value = digitalRead(PIN_OUTPUTA);
+            int value1;
+            if(value==LOW)
+                value1=HIGH;
+            else
+                value1=LOW;
+            String msg="PIN_OUTPUT switch!!!!";
+            msg+=value;
+            msg+=value1;
+            digitalWrite(PIN_OUTPUTA,value1);
+            digitalWrite(PIN_OUTPUTB,value);
+            Serial.println(msg);
             lastTime = now;
         }
     }
