@@ -112,7 +112,7 @@ int BIGIOT::packetParse(String pack)
 #endif
 
     const char *m = (const char *)root["M"];
-    const char *salve = (const char *)root["S"];
+    const char *salve = (const char *)root["ID"];
     if (!strcmp(m, "say")) {
         const char *s = (const char *)root["C"];
         for (int i = 0; i < PLATFORM_ARRAY_SIZE(platform_command); ++i) {
@@ -577,6 +577,33 @@ bool BIGIOT::upload(const char *id[], const char *data[], int len)
     }
     String json;
 
+#if ARDUINOJSON_V6113
+    serializeJson(root, json);
+#elif ARDUINOJSON_V5132
+    root.printTo(json);
+#endif
+    json += "\n";
+    print(json);
+    DEBUG_BIGIOTCIENT("Send:%s", json);
+    return true;
+}
+
+/////////////////////////////////////////////////////////////////
+bool BIGIOT::sayToClient(const char *client_id, const char *content)
+{
+    if (!_isLogin || !client_id || !content)return false;
+#if ARDUINOJSON_V6113
+    root.clear();
+#elif ARDUINOJSON_V5132
+    jsonBuffer.clear();
+    JsonObject &root = jsonBuffer.createObject();
+#endif
+
+    root["M"] = "say";
+    root["ID"] = client_id;
+    root["C"] = content;
+
+    String json;
 #if ARDUINOJSON_V6113
     serializeJson(root, json);
 #elif ARDUINOJSON_V5132
