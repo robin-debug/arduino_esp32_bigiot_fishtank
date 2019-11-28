@@ -45,8 +45,6 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
         cmdTime(slave, comstr);
     else if(0==strncmp(comstr,"light",5))
         cmdLight(slave, comstr);
-    else if(0==strncmp(comstr,"debug",5))
-        cmdDebug(slave, comstr);
     else
         cmdHelp(slave, comstr);
 }
@@ -89,45 +87,24 @@ void cmdTime(const char *client, const char *comstr)
 
 void cmdLight(const char *client, const char *comstr)
 {
-    int value = LOW;
-    if(0==strcmp(comstr,"light1"))
-        value = HIGH;
-    digitalWrite(LED_BUILTIN,value);
-    String msg = "light set to ";
-    msg+=value;
-    value = digitalRead(LED_BUILTIN);
-    msg+=value;
-    bigiot.sayToClient(client,msg.c_str());
+    int src = digitalRead(LED_BUILTIN);
+    int dst = LOW;
+    if(0==strcmp(comstr,"light!")) dst=!src;
+    else if(0==strcmp(comstr,"light1")) dst = HIGH;
+    //else dst = LOW
+    digitalWrite(LED_BUILTIN,dst);
+    if(client){
+        String msg = "light set to ";
+        msg+=src;
+        msg+="=>";
+        msg+=dst;
+        bigiot.sayToClient(client,msg.c_str());      
+    }
 }
 
 void cmdHelp(const char *client, const char *comstr)
 {
     String msg = String("bad cmd ") + comstr + ",try cam or time or light";
-    bigiot.sayToClient(client,msg.c_str());
-}
-
-void cmdDebug(const char *client, const char *comstr)
-{
-    //debug02h
-    String msg="";
-    String cmd = comstr;
-    if(cmd.length()==8){
-        cmd.remove(0,5);
-        if(cmd[2]=='l' || cmd[2]=='h'){
-            int value = HIGH;
-            if(cmd[2]=='l')
-                value = LOW;
-            cmd.remove(2);
-            long pin = cmd.toInt();
-            digitalWrite(pin,value);
-        }else{
-            msg = "bad value:";
-            msg += cmd[2];
-        }
-    }else{
-        msg="bad cmd len:";
-        msg+=comstr;
-    }
     bigiot.sayToClient(client,msg.c_str());
 }
 
@@ -205,7 +182,7 @@ void setup()
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(PIN_OUTPUTA, OUTPUT);
     pinMode(PIN_OUTPUTB, OUTPUT);
-    digitalWrite(LED_BUILTIN,HIGH);//led on
+    cmdLight(NULL,"light1");
     digitalWrite(PIN_OUTPUTA,HIGH);//relay off
     digitalWrite(PIN_OUTPUTB,HIGH);//relay off
     
@@ -215,10 +192,16 @@ void setup()
     Serial.println(ssid);
     WiFi.begin(ssid, passwd);
 
-    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-        Serial.print("Connect ssid fail");
-        while (1);
+//    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
+//        Serial.print("Connect ssid fail");
+//        while (1);
+//    }
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        cmdLight(NULL,"light!");
+        Serial.print(".");
     }
+    cmdLight(NULL,"light1");
     Serial.println("connected: OK");
 
     //init and get the time
@@ -240,7 +223,7 @@ void setup()
         while (1);
     }
     Serial.println("Connected to BIGIOT");
-    digitalWrite(LED_BUILTIN,LOW);//led off
+    cmdLight(NULL,"light0");
 }
 
 void uploadCam()
@@ -276,7 +259,7 @@ void loop()
             WiFi.reconnect();
             last_wifi_check_time = now;
         }
-    }
+    } 
 
     {
         //upload image every 60s
