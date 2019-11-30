@@ -29,6 +29,8 @@ const int   LED_BUILTIN = 4;
 const int   PIN_OUTPUTA = 2;
 const int   PIN_OUTPUTB = 13;
 
+long CAM_SLEEP = 60000;//default 60s
+
 BIGIOT bigiot;
 
 void cmdValue(const char *client, const char *comstr)
@@ -68,15 +70,25 @@ void cmdTask(const char *client, const char *comstr)
     else if(comstr[0]=='-')
         tasks.delTask(String(comstr+1));
     Serial.println(tasks.task.c_str());
-    if(client)
-        bigiot.sayToClient(client,tasks.task.c_str());
+    if(client){
+        String t=tasks.task;
+        t.replace(",","<br>\n");
+        bigiot.sayToClient(client,t.c_str());
+    }    
 }
 
 void cmdCam(const char *client, const char *comstr)
 {
     Serial.print("cmdCam ");
     Serial.println(comstr);
-    framesize_t framesize = FRAMESIZE_SVGA;
+    if(0==strcmp(comstr,"X"))
+        CAM_SLEEP=2000;//2s
+    else if(0==strcmp(comstr,"Y"))
+        CAM_SLEEP=10000;//10s
+    else
+        CAM_SLEEP=60000;//60s
+    
+    framesize_t framesize = FRAMESIZE_QQVGA;//160x120
     if(0==strcmp(comstr,"2048"))
         framesize = FRAMESIZE_QXGA;//2048*1536
     else if(0==strcmp(comstr,"1600"))
@@ -88,14 +100,12 @@ void cmdCam(const char *client, const char *comstr)
     else if(0==strcmp(comstr,"800"))
         framesize = FRAMESIZE_SVGA;//800x600
     else if(0==strcmp(comstr,"640"))
-        framesize = FRAMESIZE_VGA;//640x480    
-    setCam(framesize);
-    if(0==strcmp(comstr,"3")){
+        framesize = FRAMESIZE_VGA;//640x480
+    if(framesize != FRAMESIZE_QQVGA){
+        setCam(framesize);
         uploadCam();
-        uploadCam();
-        uploadCam();
-    }else
-        uploadCam();
+    }
+    uploadCam();
     if(client)       
         bigiot.sayToClient(client,"photo upload!");
 }
@@ -244,7 +254,7 @@ void initCam()
     config.pixel_format = PIXFORMAT_JPEG;
     //init with high specs to pre-allocate larger buffers
     config.frame_size = FRAMESIZE_UXGA;
-    config.jpeg_quality = 10;
+    config.jpeg_quality = 5;
     config.fb_count = 2;
   
     // camera init
@@ -358,7 +368,7 @@ void loop()
         //upload image every 300s
         static long lastTime = 0;
         long now = millis();
-        if(lastTime == 0 || now - lastTime > 60 * 1000) {
+        if(lastTime == 0 || now - lastTime > CAM_SLEEP) {
             uploadCam();
             cmdValue(NULL,"");
             //cmdTime(NULL,"");
