@@ -33,6 +33,14 @@ long CAM_SLEEP = 60000;//default 60s
 
 BIGIOT bigiot;
 
+const int wdtTimeout = 20000;  //time in ms to trigger the watchdog
+hw_timer_t *timer = NULL;
+
+void IRAM_ATTR resetModule() {
+  ets_printf("reboot\n");
+  esp_restart();
+}
+
 void cmdValue(const char *client, const char *comstr)
 {
     String msg="cmdValue ";
@@ -82,7 +90,7 @@ void cmdCam(const char *client, const char *comstr)
     Serial.print("cmdCam ");
     Serial.println(comstr);
     if(0==strcmp(comstr,"X"))
-        CAM_SLEEP=2000;//2s
+        CAM_SLEEP=1000;//1s
     else if(0==strcmp(comstr,"Y"))
         CAM_SLEEP=10000;//10s
     else
@@ -101,6 +109,10 @@ void cmdCam(const char *client, const char *comstr)
         framesize = FRAMESIZE_SVGA;//800x600
     else if(0==strcmp(comstr,"640"))
         framesize = FRAMESIZE_VGA;//640x480
+    else if(0==strcmp(comstr,"320"))
+        framesize = FRAMESIZE_QVGA;//320x240
+    else if(0==strcmp(comstr,"240"))
+        framesize = FRAMESIZE_HQVGA;//240x176
     if(framesize != FRAMESIZE_QQVGA){
         setCam(framesize);
         uploadCam();
@@ -316,6 +328,11 @@ void setup()
 
     //init and get the time
     cmdTime(NULL,"0");
+
+    timer = timerBegin(0, 80, true);                  //timer 0, div 80
+    timerAttachInterrupt(timer, &resetModule, true);  //attach callback
+    timerAlarmWrite(timer, wdtTimeout * 1000, false); //set time in us
+    timerAlarmEnable(timer);                          //enable interrupt
     
     cmdLight(NULL,"C9");
 }
@@ -330,8 +347,8 @@ void uploadCam()
     }
     Serial.printf("image len=%d,%d x %d\n", fb->len, fb->width, fb->height);
     int len = fb->len;
-    if(len > 100 *1024 *1024)
-      len = 100 * 1024 * 1024;
+    if(len > 90 *1024)
+      len = 90 * 1024;
     if (!bigiot.uploadPhoto( picId, "jpg", "cam", (uint8_t *)fb->buf, len))
         Serial.println("Upload error");
     else
@@ -350,6 +367,8 @@ bool taskCallback(String t)//0700A125
 
 void loop()
 {
+    timerWrite(timer, 0); //reset timer (feed watchdog),heartbeat
+
     if (WiFi.status() == WL_CONNECTED) {
         //Wait for platform command release
         bigiot.handle();
