@@ -17,6 +17,9 @@
 
 #include "config.h"
 
+#include "DalyTask.h"
+DalyTask tasks("0700A100,2200A000,0730B900,1230B900,1730B900,");
+
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 8 * 3600;
 const int   daylightOffset_sec = 8 * 3600;
@@ -33,43 +36,62 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
     // You can handle the commands issued by the platform here.
     Serial.printf(" device id:%d ,command id:%d command string:%s ,slave:%s\n", devid, comid, comstr, slave);
     if(comid == PLAY)
-        comstr = "light1";//turn light on
+        comstr = "C1";//turn light on
     else if(comid == STOP)
-        comstr = "light0";//trun light off
+        comstr = "C0";//trun light off
     else if(comid == UP)
         comstr = "cam";//take photo
 
     if(0==strncmp(comstr,"cam",3))
-        cmdCam(slave, comstr);
+        cmdCam(slave, comstr+3);
     else if(0==strncmp(comstr,"time",4))
-        cmdTime(slave, comstr);
+        cmdTime(slave, comstr+4);
     else if(0==strncmp(comstr,"light",5))
-        cmdLight(slave, comstr);
+        cmdLight(slave, comstr+5);
+    else if(0==strncmp(comstr,"task",4))
+        cmdTask(slave, comstr+4);
     else
         cmdHelp(slave, comstr);
 }
 
+void cmdTask(const char *client, const char *comstr)
+{
+    Serial.print("cmdTask ");
+    Serial.println(comstr);
+    if(comstr[0]=='+')
+        tasks.addTask(String(comstr+1));
+    else if(comstr[0]=='-')
+        tasks.delTask(String(comstr+1));
+    Serial.println(tasks.task.c_str());
+    bigiot.sayToClient(client,tasks.task.c_str());
+}
+
 void cmdCam(const char *client, const char *comstr)
 {
+    Serial.print("cmdCam ");
+    Serial.println(comstr);
     framesize_t framesize = FRAMESIZE_VGA;
-    if(0==strcmp(comstr,"cam2048"))
-        framesize = FRAMESIZE_QXGA;
-    else if(0==strcmp(comstr,"cam1600"))
-        framesize = FRAMESIZE_UXGA;
-    else if(0==strcmp(comstr,"cam1280"))
-        framesize = FRAMESIZE_SXGA;
-    else if(0==strcmp(comstr,"cam1024"))
-        framesize = FRAMESIZE_XGA;
-    else if(0==strcmp(comstr,"cam800"))
-        framesize = FRAMESIZE_SVGA;
+    if(0==strcmp(comstr,"2048"))
+        framesize = FRAMESIZE_QXGA;//2040x1920
+    else if(0==strcmp(comstr,"1600"))
+        framesize = FRAMESIZE_UXGA;//1600x1200
+    else if(0==strcmp(comstr,"1280"))
+        framesize = FRAMESIZE_SXGA;//1280x960
+    else if(0==strcmp(comstr,"1024"))
+        framesize = FRAMESIZE_XGA;//1024x768
+    else if(0==strcmp(comstr,"800"))
+        framesize = FRAMESIZE_SVGA;//800x600
+    setCam(framesize);
     uploadCam();         
     bigiot.sayToClient(client,"photo upload!");
 }
 
 void cmdTime(const char *client, const char *comstr)
 {
+    Serial.print("cmdTime ");
+    Serial.println(comstr);
     String msg = "";
-    if(0==strcmp(comstr,"time0")){
+    if(0==strcmp(comstr,"0")){
         configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
         msg += "sync time, ";
     }
@@ -86,25 +108,48 @@ void cmdTime(const char *client, const char *comstr)
 }
 
 void cmdLight(const char *client, const char *comstr)
-{
-    int src = digitalRead(LED_BUILTIN);
-    int dst = LOW;
-    if(0==strcmp(comstr,"light!")) dst=!src;
-    else if(0==strcmp(comstr,"light1")) dst = HIGH;
-    //else dst = LOW
-    digitalWrite(LED_BUILTIN,dst);
-    if(client){
-        String msg = "light set to ";
-        msg+=src;
-        msg+="=>";
-        msg+=dst;
-        bigiot.sayToClient(client,msg.c_str());      
-    }
+{    
+    Serial.print("cmdLight ");
+    Serial.println(comstr);
+    //len of comstr must is 2,eg:A0,B1,C9
+    if(strlen(comstr)!=2)
+        comstr="C9";//led blink
+    String msg="cmdLight ok";
+    if(comstr[0]=='A'){
+        if(comstr[1]=='0')//relay,low to open
+            digitalWrite(PIN_OUTPUTA,HIGH);
+        else if(comstr[1]=='1')
+            digitalWrite(PIN_OUTPUTA,LOW);
+        else
+            msg="bad value for A";
+    }else if(comstr[0]=='B'){//fedder
+        if(comstr[1]=='9'){
+            digitalWrite(PIN_OUTPUTB,LOW);
+            delay(500);
+            digitalWrite(PIN_OUTPUTB,HIGH);          
+        }else
+            msg="bad value for B";
+    }else if(comstr[0]=='C'){//led blink
+        if(comstr[1]=='0')
+            digitalWrite(LED_BUILTIN,LOW);
+        else if(comstr[1]=='1')
+            digitalWrite(LED_BUILTIN,HIGH);
+        else if(comstr[1]=='9'){
+            digitalWrite(LED_BUILTIN,HIGH);
+            delay(500);
+            digitalWrite(LED_BUILTIN,LOW);           
+        }else
+            msg="bad value for C";
+    }else
+        msg="bad pin";
+    Serial.println(msg.c_str());
+    if(client)
+        bigiot.sayToClient(client,msg.c_str());
 }
 
 void cmdHelp(const char *client, const char *comstr)
 {
-    String msg = String("bad cmd ") + comstr + ",try cam or time or light";
+    String msg = String("bad cmd ") + comstr + ",try cam or time or light or task";
     bigiot.sayToClient(client,msg.c_str());
 }
 
@@ -126,12 +171,6 @@ void setCam(framesize_t framesize)
 {
     sensor_t *s = esp_camera_sensor_get();
     s->set_framesize(s, framesize);
-    //qqvga 160x120
-    //qvga  320x240
-    //vga   640x480
-    //svga  800x600
-    //xga   1024x768
-    //uxga  1600x1200
 }
 
 void initCam()
@@ -182,7 +221,7 @@ void setup()
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(PIN_OUTPUTA, OUTPUT);
     pinMode(PIN_OUTPUTB, OUTPUT);
-    cmdLight(NULL,"light1");
+    cmdLight(NULL,"C1");
     digitalWrite(PIN_OUTPUTA,HIGH);//relay off
     digitalWrite(PIN_OUTPUTB,HIGH);//relay off
     
@@ -198,15 +237,14 @@ void setup()
 //    }
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        cmdLight(NULL,"light!");
+        cmdLight(NULL,"C9");
         Serial.print(".");
     }
-    cmdLight(NULL,"light1");
+    cmdLight(NULL,"C1");
     Serial.println("connected: OK");
 
     //init and get the time
-    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-    cmdTime(NULL,"time");
+    cmdTime(NULL,"0");
 
     //Regist platform command event hander
     bigiot.eventAttach(eventCallback);
@@ -223,7 +261,7 @@ void setup()
         while (1);
     }
     Serial.println("Connected to BIGIOT");
-    cmdLight(NULL,"light0");
+    cmdLight(NULL,"C0");
 }
 
 void uploadCam()
@@ -243,6 +281,15 @@ void uploadCam()
     else
         Serial.println("Upload Success");
     esp_camera_fb_return(fb);    
+}
+
+bool taskCallback(String t)//0700A125
+{
+    Serial.print("taskCallback ");
+    Serial.print(t.c_str());
+    t=t.substring(4,6);
+    cmdLight(NULL,t.c_str());
+    return true;
 }
 
 void loop()
@@ -280,23 +327,5 @@ void loop()
         }
     }
 
-    {
-        static long lastTime = 0;
-        long now = millis();
-        if(lastTime == 0 || now - lastTime > 3000) {
-            int value = digitalRead(PIN_OUTPUTA);
-            int value1;
-            if(value==LOW)
-                value1=HIGH;
-            else
-                value1=LOW;
-            String msg="PIN_OUTPUT switch!!!!";
-            msg+=value;
-            msg+=value1;
-            digitalWrite(PIN_OUTPUTA,value1);
-            digitalWrite(PIN_OUTPUTB,value);
-            Serial.println(msg);
-            lastTime = now;
-        }
-    }
+    tasks.doTask(&taskCallback);//work with daly task
 }
