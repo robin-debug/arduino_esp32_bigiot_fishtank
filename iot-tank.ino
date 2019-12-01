@@ -6,7 +6,11 @@
 #error "Only support espressif esp32/8266 chip"
 #endif
 
-#define DEBUG_BIGIOT_PORT Serial
+//#include "FS.h"                // SD Card ESP32
+//#include "SD_MMC.h"            // SD Card ESP32
+//#include "fileop.h"
+
+//#define DEBUG_BIGIOT_PORT Serial
 #include "bigiot.h"
 
 #define CAMERA_MODEL_AI_THINKER
@@ -16,6 +20,8 @@
 #define WIFI_TIMEOUT 30000
 
 #include "config.h"
+//const char *cfgFileName="/arduino.txt";
+//#include <ArduinoJson.h>
 
 #include "DalyTask.h"
 DalyTask tasks("0700A100,2200A000,0730B900,1230B900,1730B900,");
@@ -33,29 +39,29 @@ long CAM_SLEEP = 60000;//default 60s
 
 BIGIOT bigiot;
 
-const int wdtTimeout = 20000;  //time in ms to trigger the watchdog
+const int wdtTimeout = 90000;  //time in ms to trigger the watchdog
 hw_timer_t *timer = NULL;
 
 void IRAM_ATTR resetModule() {
-  ets_printf("reboot\n");
-  esp_restart();
+    ets_printf("reboot\n");
+    esp_restart();
 }
 
 void cmdValue(const char *client, const char *comstr)
 {
     String msg="cmdValue ";
     String n=String(digitalRead(PIN_OUTPUTA));
-    bigiot.upload(&valueIds[0][0],n.c_str());
-    msg+=&valueIds[0][0];
-    msg+=n+" ";
-    n=String(digitalRead(PIN_OUTPUTB));
-    bigiot.upload(&valueIds[1][0],n.c_str());
-    msg+=&valueIds[1][0];
-    msg+=n+" ";
-    n=String(digitalRead(LED_BUILTIN));
-    bigiot.upload(&valueIds[2][0],n.c_str());
-    msg+=&valueIds[2][0];
-    msg+=n+" ";
+    bigiot.upload(valueId,n.c_str());
+    msg+=valueId;
+//    msg+=n+" ";
+//    n=String(digitalRead(PIN_OUTPUTB));
+//    bigiot.upload(&valueIds[1][0],n.c_str());
+//    msg+=&valueIds[1][0];
+//    msg+=n+" ";
+//    n=String(digitalRead(LED_BUILTIN));
+//    bigiot.upload(&valueIds[2][0],n.c_str());
+//    msg+=&valueIds[2][0];
+//    msg+=n+" ";
     Serial.println(msg.c_str());
     if(client)
         bigiot.sayToClient(client,msg.c_str());
@@ -266,25 +272,69 @@ void initCam()
     config.pixel_format = PIXFORMAT_JPEG;
     //init with high specs to pre-allocate larger buffers
     config.frame_size = FRAMESIZE_UXGA;
-    config.jpeg_quality = 5;
+    config.jpeg_quality = 7;
     config.fb_count = 2;
-  
+
     // camera init
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
         Serial.printf("Camera init failed with error 0x%x", err);
-        while (1);
+        //while (1);
     }
   
     //drop down frame size for higher initial frame rate
-    setCam(FRAMESIZE_SVGA);
+    setCam(FRAMESIZE_VGA);
 }
+
+//StaticJsonDocument<4096> cfg;
+//bool LoadCfg(fs::FS &fs)
+//{
+//    String txt=readFile(fs,cfgFileName);
+//    //Serial.println(json.c_str());
+//    cfg.clear();
+//    DeserializationError error = deserializeJson(cfg, txt);
+//    if (error) {
+//        Serial.printf("[%d] DeserializationError code:%d \n", __LINE__, error);
+//        return false;
+//    }
+//    strcpy(ssid    ,cfg["ssid"]);
+//    Serial.printf("ssid=%s",ssid);
+//    strcpy(passwd  ,cfg["passwd"]);
+//    Serial.printf("passwd=%s",passwd);
+//    strcpy(id      ,cfg["id"]);
+//    strcpy(apikey  ,cfg["apikey"]);
+//    strcpy(usrkey  ,cfg["usrkey"]);
+//    strcpy(picId   ,cfg["picId"]);
+//    strcpy(valueId ,cfg["valueId"]);
+//    tasks.task=String((const char *)cfg["task"]);
+//    return true;
+//}
+//
+//bool SaveCfg(fs::FS &fs)
+//{
+//    if(ssid[0]==0)
+//        return false;//for safe
+//
+//    cfg.clear();
+//    cfg["ssid"]=ssid;
+//    cfg["passwd"]=passwd;
+//    cfg["id"]=id;
+//    cfg["apikey"]=apikey;
+//    cfg["usrkey"]=usrkey;
+//    cfg["picId"]=picId;
+//    cfg["valueId"]=valueId;
+//    cfg["task"]=tasks.task.c_str();
+//    String txt;
+//    serializeJson(cfg, txt);       
+//    writeFile(fs,cfgFileName,txt.c_str());
+//    return true;
+//}
 
 void setup()
 {
     Serial.begin(115200);
     delay(100);
-
+   
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(PIN_OUTPUTA, OUTPUT);
     pinMode(PIN_OUTPUTB, OUTPUT);
@@ -293,15 +343,22 @@ void setup()
     digitalWrite(PIN_OUTPUTB,HIGH);//relay off
 
     initCam();
+
+//    if(!SD_MMC.begin()){
+//        Serial.println("Card Mount Failed");
+//        return;
+//    }
+//
+//    uint64_t cardSize = SD_MMC.cardSize() / (1024 * 1024);
+//    Serial.printf("SD Card Size: %lluMB\n", cardSize);
+
+//    SaveCfg0(SD_MMC);
+//    LoadCfg(SD_MMC);
     
     Serial.print("Connecting to ");
     Serial.println(ssid);
     WiFi.begin(ssid, passwd);
 
-//    if (WiFi.waitForConnectResult() != WL_CONNECTED) {
-//        Serial.print("Connect ssid fail");
-//        while (1);
-//    }
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
         cmdLight(NULL,"C9");

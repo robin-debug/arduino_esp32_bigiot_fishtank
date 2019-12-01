@@ -485,11 +485,12 @@ bool BIGIOT::uploadPhoto( const char *id, const char *type, const char *filename
     content_len = size;
     size_t offset = 0;
     size_t ret = 0;
+    long old=millis();
     while (1) {
         ret = client.write(image + offset, content_len);
         offset += ret;
         content_len -= ret;
-        if (size == offset) {
+        if (size == offset || millis() - old > 30000) {
             break;
         }
         delay(1);
