@@ -6,9 +6,9 @@
 #error "Only support espressif esp32/8266 chip"
 #endif
 
-//#include "FS.h"                // SD Card ESP32
-//#include "SD_MMC.h"            // SD Card ESP32
-//#include "fileop.h"
+#include "FS.h"                // SD Card ESP32
+#include "SD_MMC.h"            // SD Card ESP32
+#include "fileop.h"
 
 //#define DEBUG_BIGIOT_PORT Serial
 #include "bigiot.h"
@@ -20,11 +20,10 @@
 #define WIFI_TIMEOUT 30000
 
 #include "config.h"
-//const char *cfgFileName="/arduino.txt";
-//#include <ArduinoJson.h>
+#include <ArduinoJson.h>
 
 #include "DalyTask.h"
-DalyTask tasks("0700A100,2200A000,0730B900,1230B900,1730B900,");
+DalyTask tasks("");
 
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 8 * 3600;
@@ -286,49 +285,58 @@ void initCam()
     setCam(FRAMESIZE_VGA);
 }
 
-//StaticJsonDocument<4096> cfg;
-//bool LoadCfg(fs::FS &fs)
-//{
-//    String txt=readFile(fs,cfgFileName);
-//    //Serial.println(json.c_str());
-//    cfg.clear();
-//    DeserializationError error = deserializeJson(cfg, txt);
-//    if (error) {
-//        Serial.printf("[%d] DeserializationError code:%d \n", __LINE__, error);
-//        return false;
-//    }
-//    strcpy(ssid    ,cfg["ssid"]);
-//    Serial.printf("ssid=%s",ssid);
-//    strcpy(passwd  ,cfg["passwd"]);
-//    Serial.printf("passwd=%s",passwd);
-//    strcpy(id      ,cfg["id"]);
-//    strcpy(apikey  ,cfg["apikey"]);
-//    strcpy(usrkey  ,cfg["usrkey"]);
-//    strcpy(picId   ,cfg["picId"]);
-//    strcpy(valueId ,cfg["valueId"]);
-//    tasks.task=String((const char *)cfg["task"]);
-//    return true;
-//}
-//
-//bool SaveCfg(fs::FS &fs)
-//{
-//    if(ssid[0]==0)
-//        return false;//for safe
-//
-//    cfg.clear();
-//    cfg["ssid"]=ssid;
-//    cfg["passwd"]=passwd;
-//    cfg["id"]=id;
-//    cfg["apikey"]=apikey;
-//    cfg["usrkey"]=usrkey;
-//    cfg["picId"]=picId;
-//    cfg["valueId"]=valueId;
-//    cfg["task"]=tasks.task.c_str();
-//    String txt;
-//    serializeJson(cfg, txt);       
-//    writeFile(fs,cfgFileName,txt.c_str());
-//    return true;
-//}
+StaticJsonDocument<4096> cfg;
+bool LoadCfg(fs::FS &fs)
+{
+    String txt=readFile(fs,cfgFileName);
+    //Serial.println(json.c_str());
+    cfg.clear();
+    DeserializationError error = deserializeJson(cfg, txt);
+    if (error) {
+        Serial.printf("[%d] DeserializationError code:%d \n", __LINE__, error);
+        return false;
+    }
+    strcpy(ssid    ,cfg["ssid"]);
+    strcpy(passwd  ,cfg["passwd"]);
+    strcpy(id      ,cfg["id"]);
+    strcpy(apikey  ,cfg["apikey"]);
+    strcpy(usrkey  ,cfg["usrkey"]);
+    strcpy(picId   ,cfg["picId"]);
+    strcpy(valueId ,cfg["valueId"]);
+    tasks.task=String((const char *)cfg["task"]);
+    
+    char light[16]={0};
+    strcpy(light ,cfg["light"]);
+    if(light[0]=='1')
+        digitalWrite(PIN_OUTPUTA,LOW);
+    return true;
+}
+
+bool SaveCfg(fs::FS &fs)
+{
+    if(ssid[0]==0)
+        return false;//for safe
+
+    cfg.clear();
+    cfg["ssid"]=ssid;
+    cfg["passwd"]=passwd;
+    cfg["id"]=id;
+    cfg["apikey"]=apikey;
+    cfg["usrkey"]=usrkey;
+    cfg["picId"]=picId;
+    cfg["valueId"]=valueId;
+    cfg["task"]=tasks.task.c_str();
+    
+    char light[16]="000";
+    if(digitalRead(PIN_OUTPUTA)==LOW)
+        light[0]='1';
+    cfg["light"]=light;
+    
+    String txt;
+    serializeJson(cfg, txt);       
+    writeFile(fs,cfgFileName,txt.c_str());
+    return true;
+}
 
 void setup()
 {
@@ -344,16 +352,14 @@ void setup()
 
     initCam();
 
-//    if(!SD_MMC.begin()){
-//        Serial.println("Card Mount Failed");
-//        return;
-//    }
-//
-//    uint64_t cardSize = SD_MMC.cardSize() / (1024 * 1024);
-//    Serial.printf("SD Card Size: %lluMB\n", cardSize);
-
-//    SaveCfg0(SD_MMC);
-//    LoadCfg(SD_MMC);
+    if(!SD_MMC.begin()){
+        Serial.println("Card Mount Failed");
+        return;
+    }
+    uint64_t cardSize = SD_MMC.cardSize() / (1024 * 1024);
+    Serial.printf("SD Card Size: %lluMB\n", cardSize);
+    //SaveCfg(SD_MMC);
+    LoadCfg(SD_MMC);
     
     Serial.print("Connecting to ");
     Serial.println(ssid);

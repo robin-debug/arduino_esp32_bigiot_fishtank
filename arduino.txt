@@ -1,0 +1,1 @@
+{"ssid":"Robin","passwd":"","id":"","apikey":"","usrkey":"","picId":"13224","valueId":"13220","task":"0700A100,2200A000,0730B900,1230B900,1730B900,","light":"000"}
