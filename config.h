@@ -1,12 +1,10 @@
-char ssid[32] = "";
-char passwd[32] = "";
+const char *ssid = "";
+const char *passwd = "";
 
-char id[32]      = ""; //platform device id
-char apikey[32]  = ""; //platform device api key
-char usrkey[32]  = ""; //platform user key , if you are not using encrypted login,you can leave it blank
-char picId[32]   = ""; //photo data stream id
-char valueId[32] = "";
+const char *id      = ""; //platform device id
+const char *apikey  = ""; //platform device api key
+const char *usrkey  = ""; //platform user key , if you are not using encrypted login,you can leave it blank
+const char *picId   = ""; //photo data stream id
+const char *valueId = "";
 
-const char *cfgFileName="/arduino.txt";//read cfg from sd
-
-//char *valueIds[]={"13220","13221","13222"};
+const char *cfgFileName="/config.json";//read cfg from sd

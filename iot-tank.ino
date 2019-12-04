@@ -6,9 +6,7 @@
 #error "Only support espressif esp32/8266 chip"
 #endif
 
-#include "FS.h"                // SD Card ESP32
-#include "SD_MMC.h"            // SD Card ESP32
-#include "fileop.h"
+#include "SPIFFS.h"
 
 //#define DEBUG_BIGIOT_PORT Serial
 #include "bigiot.h"
@@ -30,9 +28,8 @@ const long  gmtOffset_sec = 8 * 3600;
 const int   daylightOffset_sec = 8 * 3600;
 
 const int   LED_BUILTIN = 4;
-//const int   PIN_OUTPUTA = 12;//not boot,flash read err, 1000
-const int   PIN_OUTPUTA = 2;
-const int   PIN_OUTPUTB = 13;
+const int ps[]={2,14,15,13,-1};//12 not boot
+char bootTime[64]="";
 
 long CAM_SLEEP = 60000;//default 60s
 
@@ -48,19 +45,17 @@ void IRAM_ATTR resetModule() {
 
 void cmdValue(const char *client, const char *comstr)
 {
-    String msg="cmdValue ";
-    String n=String(digitalRead(PIN_OUTPUTA));
-    bigiot.upload(valueId,n.c_str());
-    msg+=valueId;
-//    msg+=n+" ";
-//    n=String(digitalRead(PIN_OUTPUTB));
-//    bigiot.upload(&valueIds[1][0],n.c_str());
-//    msg+=&valueIds[1][0];
-//    msg+=n+" ";
-//    n=String(digitalRead(LED_BUILTIN));
-//    bigiot.upload(&valueIds[2][0],n.c_str());
-//    msg+=&valueIds[2][0];
-//    msg+=n+" ";
+    String msg="cmdValue ",n;
+    for(int i=0;;i++){
+        if(ps[i]==-1) break;
+        n=String(digitalRead(ps[i]));
+        if(i==0)
+            bigiot.upload(valueId,n.c_str());
+        msg+=String(ps[i])+":"+n+",";
+    }
+    n=String(digitalRead(LED_BUILTIN));
+    msg+=String(LED_BUILTIN)+":"+n;
+    
     Serial.println(msg.c_str());
     if(client)
         bigiot.sayToClient(client,msg.c_str());
@@ -78,10 +73,13 @@ void cmdTask(const char *client, const char *comstr)
 {
     Serial.print("cmdTask ");
     Serial.println(comstr);
-    if(comstr[0]=='+')
+    if(comstr[0]=='+'){
         tasks.addTask(String(comstr+1));
-    else if(comstr[0]=='-')
+        SaveCfg();
+    } else if(comstr[0]=='-'){
         tasks.delTask(String(comstr+1));
+        SaveCfg();
+    }
     Serial.println(tasks.task.c_str());
     if(client){
         String t=tasks.task;
@@ -116,8 +114,6 @@ void cmdCam(const char *client, const char *comstr)
         framesize = FRAMESIZE_VGA;//640x480
     else if(0==strcmp(comstr,"320"))
         framesize = FRAMESIZE_QVGA;//320x240
-    else if(0==strcmp(comstr,"240"))
-        framesize = FRAMESIZE_HQVGA;//240x176
     if(framesize != FRAMESIZE_QQVGA){
         setCam(framesize);
         uploadCam();
@@ -132,17 +128,23 @@ void cmdTime(const char *client, const char *comstr)
     Serial.print("cmdTime ");
     Serial.println(comstr);
     String msg = "";
-    if(0==strcmp(comstr,"0")){
-        configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-        msg += "sync time, ";
+    if(0==strcmp(comstr,"X"))
+        msg=String("boot:")+bootTime;
+    else{
+        if(0==strcmp(comstr,"0")){
+            configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+            msg += "sync time, ";
+        }
+        struct tm timeinfo;
+        if(getLocalTime(&timeinfo)) {
+            char buf[64] = {0};
+            strftime(buf, 64, "%A, %B %d %Y %H:%M:%S", &timeinfo);
+            if(bootTime[0]==0)
+                strcpy(bootTime,buf);
+            msg+=buf;
+        } else
+            msg +="Failed to obtain time";    
     }
-    struct tm timeinfo;
-    if(getLocalTime(&timeinfo)) {
-        char buf[64] = {0};
-        strftime(buf, 64, "%A, %B %d %Y %H:%M:%S", &timeinfo);
-        msg+=buf;
-    } else
-        msg +="Failed to obtain time";
     Serial.println(msg.c_str());
     if(client)
         bigiot.sayToClient(client,msg.c_str());
@@ -154,33 +156,36 @@ void cmdLight(const char *client, const char *comstr)
     Serial.println(comstr);
     //len of comstr must is 2,eg:A0,B1,C9
     if(strlen(comstr)!=2)
-        comstr="C9";//led blink
+        comstr="X9";//led blink
     String msg="cmdLight ok";
-    if(comstr[0]=='A'){
-        if(comstr[1]=='0')//relay,low to open
-            digitalWrite(PIN_OUTPUTA,HIGH);
-        else if(comstr[1]=='1')
-            digitalWrite(PIN_OUTPUTA,LOW);
-        else
-            msg="bad value for A";
-    }else if(comstr[0]=='B'){//fedder
-        if(comstr[1]=='9'){
-            digitalWrite(PIN_OUTPUTB,LOW);
-            delay(500);
-            digitalWrite(PIN_OUTPUTB,HIGH);          
-        }else
-            msg="bad value for B";
-    }else if(comstr[0]=='C'){//led blink
-        if(comstr[1]=='0')
+    if(comstr[0]=='X'){//led
+        if(comstr[1]=='0'){
             digitalWrite(LED_BUILTIN,LOW);
-        else if(comstr[1]=='1')
+            SaveCfg();
+        }else if(comstr[1]=='1'){
             digitalWrite(LED_BUILTIN,HIGH);
-        else if(comstr[1]=='9'){
+            SaveCfg();
+        }else if(comstr[1]=='9'){
             digitalWrite(LED_BUILTIN,HIGH);
-            delay(500);
-            digitalWrite(LED_BUILTIN,LOW);           
+            delay(100);
+            digitalWrite(LED_BUILTIN,LOW);   
         }else
-            msg="bad value for C";
+            msg=String("bad value for ")+comstr[0];
+    }else if(comstr[0]>='A'&&comstr[0]<='D'){
+        int port=ps[comstr[0]-'A'];
+        msg+=port;
+        if(comstr[1]=='0'){
+            digitalWrite(port,HIGH);//relay off
+            SaveCfg();
+        }else if(comstr[1]=='1'){
+            digitalWrite(port,LOW);//relay on
+            SaveCfg();
+        }else if(comstr[1]=='9'){
+            digitalWrite(port,LOW);//relay on
+            delay(100);
+            digitalWrite(port,HIGH);//relay off
+        }else
+            msg="bad value";
     }else
         msg="bad pin";
     Serial.println(msg.c_str());
@@ -224,20 +229,6 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
     else
         cmdHelp(slave, comstr);
 }
-
-//void disconnectCallback(BIGIOT &obj)
-//{
-//    // When the device is disconnected to the platform, you can handle your peripherals here
-//    Serial.print(obj.deviceName());
-//    Serial.println("  disconnect");
-//}
-//
-//void connectCallback(BIGIOT &obj)
-//{
-//    // When the device is connected to the platform, you can preprocess your peripherals here
-//    Serial.print(obj.deviceName());
-//    Serial.println("  connect");
-//}
 
 void setCam(framesize_t framesize)
 {
@@ -286,106 +277,115 @@ void initCam()
 }
 
 StaticJsonDocument<4096> cfg;
-bool LoadCfg(fs::FS &fs)
+bool LoadCfg()
 {
-    String txt=readFile(fs,cfgFileName);
-    //Serial.println(json.c_str());
+    File file = SPIFFS.open(cfgFileName);
+    if(!file){
+        Serial.println("Failed to open file for reading");
+        return false;
+    }
+    String txt;
+    while(file.available()){
+        char c=file.read();
+        txt+=c;
+    }
+    file.close();
+    Serial.println("File Content:");
+    Serial.println(txt.c_str());
+
     cfg.clear();
     DeserializationError error = deserializeJson(cfg, txt);
     if (error) {
         Serial.printf("[%d] DeserializationError code:%d \n", __LINE__, error);
         return false;
     }
-    strcpy(ssid    ,cfg["ssid"]);
-    strcpy(passwd  ,cfg["passwd"]);
-    strcpy(id      ,cfg["id"]);
-    strcpy(apikey  ,cfg["apikey"]);
-    strcpy(usrkey  ,cfg["usrkey"]);
-    strcpy(picId   ,cfg["picId"]);
-    strcpy(valueId ,cfg["valueId"]);
     tasks.task=String((const char *)cfg["task"]);
     
     char light[16]={0};
     strcpy(light ,cfg["light"]);
-    if(light[0]=='1')
-        digitalWrite(PIN_OUTPUTA,LOW);
+    for(int i=0;;i++){
+        if(ps[i]==-1 || light[i]==0) break;
+        digitalWrite(ps[i],light[i]=='1'?LOW:HIGH);             
+    }
     return true;
 }
 
-bool SaveCfg(fs::FS &fs)
+bool SaveCfg()
 {
-    if(ssid[0]==0)
-        return false;//for safe
-
     cfg.clear();
-    cfg["ssid"]=ssid;
-    cfg["passwd"]=passwd;
-    cfg["id"]=id;
-    cfg["apikey"]=apikey;
-    cfg["usrkey"]=usrkey;
-    cfg["picId"]=picId;
-    cfg["valueId"]=valueId;
-    cfg["task"]=tasks.task.c_str();
-    
-    char light[16]="000";
-    if(digitalRead(PIN_OUTPUTA)==LOW)
-        light[0]='1';
+    cfg["task"]=tasks.task.c_str();  
+    char light[16]="00000";
+    for(int i=0;;i++){
+        if(ps[i]==-1) break;
+        if(digitalRead(ps[i])==LOW)
+            light[i]='1';        
+    }
     cfg["light"]=light;
     
     String txt;
-    serializeJson(cfg, txt);       
-    writeFile(fs,cfgFileName,txt.c_str());
+    serializeJson(cfg, txt);
+    Serial.println("File Content:");
+    Serial.println(txt.c_str());
+    
+    File file = SPIFFS.open(cfgFileName,FILE_WRITE);
+    if(!file){
+        Serial.println("Failed to open file for write");
+        return false;
+    }
+    file.write((const uint8_t*)txt.c_str(),txt.length());
+    file.close();
     return true;
 }
 
 void setup()
-{
+{    
     Serial.begin(115200);
     delay(100);
-   
     pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(PIN_OUTPUTA, OUTPUT);
-    pinMode(PIN_OUTPUTB, OUTPUT);
-    cmdLight(NULL,"C9");//led on
-    digitalWrite(PIN_OUTPUTA,HIGH);//relay off
-    digitalWrite(PIN_OUTPUTB,HIGH);//relay off
+    for(int i=0;;i++){
+        if(ps[i]==-1) break;
+        pinMode(ps[i], OUTPUT);
+        digitalWrite(ps[i],HIGH);//relay off
+    }
+    cmdLight(NULL,"X9");
 
     initCam();
 
-    if(!SD_MMC.begin()){
-        Serial.println("Card Mount Failed");
-        return;
+    if(!SPIFFS.begin(true)){
+        Serial.println("An Error has occurred while mounting SPIFFS");
+        while(1){
+            digitalWrite(LED_BUILTIN,HIGH);
+            delay(500);
+            digitalWrite(LED_BUILTIN,LOW);
+            Serial.print(".");
+        }
     }
-    uint64_t cardSize = SD_MMC.cardSize() / (1024 * 1024);
-    Serial.printf("SD Card Size: %lluMB\n", cardSize);
-    //SaveCfg(SD_MMC);
-    LoadCfg(SD_MMC);
+    LoadCfg();
     
     Serial.print("Connecting to ");
     Serial.println(ssid);
     WiFi.begin(ssid, passwd);
 
     while (WiFi.status() != WL_CONNECTED) {
+        digitalWrite(LED_BUILTIN,HIGH);
         delay(500);
-        cmdLight(NULL,"C9");
+        digitalWrite(LED_BUILTIN,LOW);
         Serial.print(".");
     }
-    //cmdLight(NULL,"C9");
     Serial.println("connected: OK");
 
     //Regist platform command event hander
     bigiot.eventAttach(eventCallback);
 
-//    //Regist device disconnect hander
-//    bigiot.disconnectAttack(disconnectCallback);
-//
-//    //Regist device connect hander
-//    bigiot.connectAttack(connectCallback);
-
     // Login to bigiot.net
     if (!bigiot.login(id, apikey, usrkey)) {
         Serial.println("Login fail");
-        while (1);
+        while(1){
+            digitalWrite(LED_BUILTIN,HIGH);
+            delay(500);
+            digitalWrite(LED_BUILTIN,LOW);
+            Serial.print(".");
+        }
     }
     Serial.println("Connected to BIGIOT");
 
@@ -397,7 +397,7 @@ void setup()
     timerAlarmWrite(timer, wdtTimeout * 1000, false); //set time in us
     timerAlarmEnable(timer);                          //enable interrupt
     
-    cmdLight(NULL,"C9");
+    cmdLight(NULL,"X9");
 }
 
 void uploadCam()
