@@ -207,11 +207,7 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
     // You can handle the commands issued by the platform here.
     Serial.printf(" device id:%d ,command id:%d command string:%s ,slave:%s\n", devid, comid, comstr, slave);
     if(comid == PLAY)
-        comstr = "lightC1";//turn light on
-    else if(comid == STOP)
-        comstr = "lightC0";//trun light off
-    else if(comid == UP)
-        comstr = "cam";//take photo
+        comstr = "lightX9";//led blink
 
     if(0==strncmp(comstr,"cam",3))
         cmdCam(slave, comstr+3);
@@ -358,6 +354,7 @@ void setup()
             delay(500);
             digitalWrite(LED_BUILTIN,LOW);
             Serial.print(".");
+            delay(500);
         }
     }
     LoadCfg();
@@ -371,6 +368,7 @@ void setup()
         delay(500);
         digitalWrite(LED_BUILTIN,LOW);
         Serial.print(".");
+        delay(500);
     }
     Serial.println("connected: OK");
 
@@ -385,6 +383,7 @@ void setup()
             delay(500);
             digitalWrite(LED_BUILTIN,LOW);
             Serial.print(".");
+            delay(500);
         }
     }
     Serial.println("Connected to BIGIOT");
