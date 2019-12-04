@@ -79,14 +79,12 @@ String readFile(fs::FS &fs, const char * path){
         Serial.println("Failed to open file for reading");
         return txt;
     }
-
-    Serial.print("Read from file: ");
     while(file.available()){
         char c=file.read();
         txt+=c;
-        Serial.write(c);
     }
     file.close();
+    Serial.printf("Read from file len %d\n",txt.length());
     return txt;
 }
 
