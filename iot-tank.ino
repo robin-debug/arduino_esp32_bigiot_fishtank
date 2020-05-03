@@ -8,6 +8,9 @@
 
 #include "SPIFFS.h"
 
+//http://www.bigiot.net
+//https://github.com/bigiot/bigiotArduino
+//https://github.com/bigiot/Arduino_BIGIOT
 //#define DEBUG_BIGIOT_PORT Serial
 #include "bigiot.h"
 
@@ -25,7 +28,7 @@ DalyTask tasks("");
 
 const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 8 * 3600;
-const int   daylightOffset_sec = 8 * 3600;
+const int   daylightOffset_sec = 0;//8 * 3600;
 
 const int   LED_BUILTIN = 4;
 const int ps[]={2,14,15,13,-1};//12 not boot
@@ -43,6 +46,7 @@ void IRAM_ATTR resetModule() {
     esp_restart();
 }
 
+/*
 void cmdValue(const char *client, const char *comstr)
 {
     String msg="cmdValue ",n;
@@ -60,6 +64,7 @@ void cmdValue(const char *client, const char *comstr)
     if(client)
         bigiot.sayToClient(client,msg.c_str());
 }
+*/
 
 void cmdReboot(const char *client, const char *comstr)
 {
@@ -197,7 +202,8 @@ void cmdHelp(const char *client, const char *comstr)
 {
     if(!client)
         return;
-    String msg = String("bad cmd ") + comstr + ",try cam/time/light/task/value/reboot";
+    //String msg = String("bad cmd ") + comstr + ",try cam/time/light/task/value/reboot";
+    String msg = String("bad cmd ") + comstr + ",try cam/time/light/task/reboot";
     bigiot.sayToClient(client,msg.c_str());
 }
 
@@ -215,13 +221,13 @@ void eventCallback(const int devid, const int comid, const char *comstr, const c
         cmdTime(slave, comstr+4);
     else if(0==strncmp(comstr,"light",5)){
         cmdLight(slave, comstr+5);
-        cmdValue(slave,"");//upload values
+        //cmdValue(slave,"");//upload values
     }else if(0==strncmp(comstr,"task",4))
         cmdTask(slave, comstr+4);
     else if(0==strncmp(comstr,"reboot",6))
         cmdReboot(slave, comstr+6);
-    else if(0==strncmp(comstr,"value",5))
-        cmdValue(slave,comstr+5);
+    //else if(0==strncmp(comstr,"value",5))
+    //    cmdValue(slave,comstr+5);
     else
         cmdHelp(slave, comstr);
 }
@@ -451,7 +457,7 @@ void loop()
         long now = millis();
         if(lastTime == 0 || now - lastTime > CAM_SLEEP) {
             uploadCam();
-            cmdValue(NULL,"");
+            //cmdValue(NULL,"");
             //cmdTime(NULL,"");
             lastTime = now;
         }
