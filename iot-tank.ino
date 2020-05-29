@@ -34,11 +34,11 @@ const int LED_BUILTIN = 4;
 const int ps[] = {2, 14, 15, 13, -1}; //12 not boot
 char bootTime[64] = "";
 
-long CAM_SLEEP = 60000; //default 60s
+long CAM_SLEEP = 300; //default 300s
 
 BIGIOT bigiot;
 
-const int wdtTimeout = 90000; //time in ms to trigger the watchdog
+const int wdtTimeout = 90000; //90s,time in ms to trigger the watchdog
 hw_timer_t *timer = NULL;
 
 void IRAM_ATTR resetModule()
@@ -103,11 +103,11 @@ void cmdCam(const char *client, const char *comstr)
     Serial.print("cmdCam ");
     Serial.println(comstr);
     if (0 == strcmp(comstr, "X"))
-        CAM_SLEEP = 1000; //1s
+        CAM_SLEEP = 1; //1s
     else if (0 == strcmp(comstr, "Y"))
-        CAM_SLEEP = 10000; //10s
+        CAM_SLEEP = 10; //10s
     else
-        CAM_SLEEP = 60000; //60s
+        CAM_SLEEP = 300; //300s
 
     framesize_t framesize = FRAMESIZE_QQVGA; //160x120
     if (0 == strcmp(comstr, "2048"))
@@ -127,11 +127,11 @@ void cmdCam(const char *client, const char *comstr)
     if (framesize != FRAMESIZE_QQVGA)
     {
         setCam(framesize);
-        uploadCam();
+        uploadCam(); //第一次没效果
     }
-    uploadCam();
+    bool ok = uploadCam();
     if (client)
-        bigiot.sayToClient(client, "photo upload!");
+        bigiot.sayToClient(client, ok ? "photo upload!" : "photo fail!");
 }
 
 void cmdTime(const char *client, const char *comstr)
@@ -448,8 +448,31 @@ void setup()
     cmdLight(NULL, "X9");
 }
 
-void uploadCam()
+bool uploadCam()
 {
+    const char *id = picId;
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo))
+    {
+        static int lastWeek = 0;
+        static int lastDay = 0;
+        static int lastHour = 0;
+        if (lastWeek != tm.tm_wday && tm.tm_hour == 12) //在12点执行
+        {
+            lastWeek = tm.tm_wday;
+            id = picIdWeek;
+        }
+        else if (lastDay != tm.tm_mday && tm.tm_hour == 12) //在12点执行
+        {
+            lastDay = tm.tm_mday;
+            id = picIdDay;
+        }
+        else if (lastHour != tm.tm_hour)
+        {
+            lastHour = tm.tm_hour;
+            id = picIdHour;
+        }
+    }
     Serial.println("cam");
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb)
@@ -461,11 +484,10 @@ void uploadCam()
     int len = fb->len;
     if (len > 90 * 1024)
         len = 90 * 1024;
-    if (!bigiot.uploadPhoto(picId, "jpg", "cam", (uint8_t *)fb->buf, len))
-        Serial.println("Upload error");
-    else
-        Serial.println("Upload Success");
+    bool ok = bigiot.uploadPhoto(id, "jpg", "cam", (uint8_t *)fb->buf, len);
+    Serial.println(ok ? "Upload Success" : "Upload error");
     esp_camera_fb_return(fb);
+    return ok;
 }
 
 bool taskCallback(String t) //0700A125
@@ -503,7 +525,7 @@ void loop()
         //upload image every 300s
         static long lastTime = 0;
         long now = millis();
-        if (lastTime == 0 || now - lastTime > CAM_SLEEP)
+        if (lastTime == 0 || now - lastTime > CAM_SLEEP * 1000)
         {
             uploadCam();
             //cmdValue(NULL,"");
