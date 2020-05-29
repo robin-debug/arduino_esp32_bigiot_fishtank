@@ -36,7 +36,8 @@ char bootTime[64] = "";
 
 long CAM_SLEEP = 300; //default 300s
 
-BIGIOT bigiot;
+WiFiClient client;
+BIGIOT bigiot(client);
 
 const int wdtTimeout = 90000; //90s,time in ms to trigger the watchdog
 hw_timer_t *timer = NULL;
