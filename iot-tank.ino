@@ -10,7 +10,7 @@
 
 //http://www.bigiot.net
 //https://github.com/bigiot/bigiotArduino
-//https://github.com/bigiot/Arduino_BIGIOT
+//https://github.com/robin-debug/ArduinoBIGIOT
 //#define DEBUG_BIGIOT_PORT Serial
 #include "bigiot.h"
 
@@ -35,6 +35,9 @@ const int ps[] = {2, 14, 15, 13, -1}; //12 not boot
 char bootTime[64] = "";
 
 long CAM_SLEEP = 300; //default 300s
+int lastCamWeek = 0;
+int lastCamDay = 0;
+int lastCamHour = 0;
 
 WiFiClient client;
 BIGIOT bigiot(client);
@@ -234,30 +237,30 @@ void cmdHelp(const char *client, const char *comstr)
     bigiot.sayToClient(client, msg.c_str());
 }
 
-void eventCallback(const int devid, const int comid, const char *comstr, const char *slave)
+void eventCallback(const int devid, const int comid, const char *comstr, const char *user)
 {
     // You can handle the commands issued by the platform here.
-    Serial.printf(" device id:%d ,command id:%d command string:%s ,slave:%s\n", devid, comid, comstr, slave);
+    Serial.printf(" device id:%d ,command id:%d command string:%s ,user:%s\n", devid, comid, comstr, user);
     if (comid == PLAY)
         comstr = "lightX9"; //led blink
 
     if (0 == strncmp(comstr, "cam", 3))
-        cmdCam(slave, comstr + 3);
+        cmdCam(user, comstr + 3);
     else if (0 == strncmp(comstr, "time", 4))
-        cmdTime(slave, comstr + 4);
+        cmdTime(user, comstr + 4);
     else if (0 == strncmp(comstr, "light", 5))
     {
-        cmdLight(slave, comstr + 5);
-        //cmdValue(slave,"");//upload values
+        cmdLight(user, comstr + 5);
+        //cmdValue(user,"");//upload values
     }
     else if (0 == strncmp(comstr, "task", 4))
-        cmdTask(slave, comstr + 4);
+        cmdTask(user, comstr + 4);
     else if (0 == strncmp(comstr, "reboot", 6))
-        cmdReboot(slave, comstr + 6);
+        cmdReboot(user, comstr + 6);
     //else if(0==strncmp(comstr,"value",5))
-    //    cmdValue(slave,comstr+5);
+    //    cmdValue(user,comstr+5);
     else
-        cmdHelp(slave, comstr);
+        cmdHelp(user, comstr);
 }
 
 void setCam(framesize_t framesize)
@@ -334,6 +337,9 @@ bool LoadCfg()
         return false;
     }
     tasks.task = String((const char *)cfg["task"]);
+    lastCamWeek = cfg["lastCamWeek"];
+    lastCamDay = cfg["lastCamDay"];
+    lastCamHour = cfg["lastCamHour"];
 
     char light[16] = {0};
     strcpy(light, cfg["light"]);
@@ -359,6 +365,9 @@ bool SaveCfg()
             light[i] = '1';
     }
     cfg["light"] = light;
+    cfg["lastCamWeek"] = lastCamWeek;
+    cfg["lastCamDay"] = lastCamDay;
+    cfg["lastCamHour"] = lastCamHour;
 
     String txt;
     serializeJson(cfg, txt);
@@ -455,30 +464,33 @@ bool uploadCam()
     struct tm timeinfo;
     if (getLocalTime(&timeinfo))
     {
-        static int lastWeek = 0;
-        static int lastDay = 0;
-        static int lastHour = 0;
-        if (lastWeek != timeinfo.tm_wday && timeinfo.tm_hour == 12) //在12点执行
+        if (lastCamWeek != timeinfo.tm_wday && timeinfo.tm_hour == 12) //在12点执行
         {
-            lastWeek = timeinfo.tm_wday;
+            lastCamWeek = timeinfo.tm_wday;
             id = picIdWeek;
+            SaveCfg();
+            Serial.println("Camera Week");
         }
-        else if (lastDay != timeinfo.tm_mday && timeinfo.tm_hour == 12) //在12点执行
+        else if (lastCamDay != timeinfo.tm_mday && timeinfo.tm_hour == 12) //在12点执行
         {
-            lastDay = timeinfo.tm_mday;
+            lastCamDay = timeinfo.tm_mday;
             id = picIdDay;
+            SaveCfg();
+            Serial.println("Camera Day");
         }
-        else if (lastHour != timeinfo.tm_hour)
+        else if (lastCamHour != timeinfo.tm_hour)
         {
-            lastHour = timeinfo.tm_hour;
+            lastCamHour = timeinfo.tm_hour;
             id = picIdHour;
+            SaveCfg();
+            Serial.println("Camera Hour");
         }
     }
     Serial.println("cam");
     camera_fb_t *fb = esp_camera_fb_get();
     if (!fb)
     {
-        Serial.printf("Camera capture failed");
+        Serial.println("Camera capture failed");
         return false;
     }
     Serial.printf("image len=%d,%d x %d\n", fb->len, fb->width, fb->height);
