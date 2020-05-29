@@ -457,19 +457,19 @@ bool uploadCam()
         static int lastWeek = 0;
         static int lastDay = 0;
         static int lastHour = 0;
-        if (lastWeek != tm.tm_wday && tm.tm_hour == 12) //在12点执行
+        if (lastWeek != timeinfo.tm_wday && timeinfo.tm_hour == 12) //在12点执行
         {
-            lastWeek = tm.tm_wday;
+            lastWeek = timeinfo.tm_wday;
             id = picIdWeek;
         }
-        else if (lastDay != tm.tm_mday && tm.tm_hour == 12) //在12点执行
+        else if (lastDay != timeinfo.tm_mday && timeinfo.tm_hour == 12) //在12点执行
         {
-            lastDay = tm.tm_mday;
+            lastDay = timeinfo.tm_mday;
             id = picIdDay;
         }
-        else if (lastHour != tm.tm_hour)
+        else if (lastHour != timeinfo.tm_hour)
         {
-            lastHour = tm.tm_hour;
+            lastHour = timeinfo.tm_hour;
             id = picIdHour;
         }
     }
@@ -478,7 +478,7 @@ bool uploadCam()
     if (!fb)
     {
         Serial.printf("Camera capture failed");
-        return;
+        return false;
     }
     Serial.printf("image len=%d,%d x %d\n", fb->len, fb->width, fb->height);
     int len = fb->len;
