@@ -1,23 +1,30 @@
 # 智能鱼缸控制器 iot fish tank
+<img src="https://raw.githubusercontent.com/robin-debug/arduino_esp32_bigiot_fishtank/master/data/tank.jpg">
 
 ## 简介
 为了使现有鱼缸设备智能化，将定时任务自动执行，并能远程查/看/控。
 
 本项目使用esp32-cam主板，arduino环境，物联网平台使用bigiot免费平台。
-
+<img src="https://raw.githubusercontent.com/robin-debug/arduino_esp32_bigiot_fishtank/master/data/device.jpg">
 ## 特点
 * 看（可视化），设备自动上传图像到iot平台，可远程查看鱼缸最新实况
 * 查（数据上报），除图像外，设备还上传传感器/控制通道的数据
 * 控（命令系统），借助微信和网站平台，可以通过命令行，控制设备
 
+设备上传真实样张
+<img src="https://raw.githubusercontent.com/robin-debug/arduino_esp32_bigiot_fishtank/master/data/cam.jpg">
+
 ## 硬件组成
 * esp32-cam，这块板子包含esp32主控芯片，板载4M闪存/200M像素摄像头/读卡器/wifi/蓝牙
 * 4路继电器模块，220伏10安，光耦隔离，高电位触发
+<img src="https://raw.githubusercontent.com/robin-debug/arduino_esp32_bigiot_fishtank/master/data/esp32cam.png">
 
 ## 外接设备
 继电器模块控制外部设备，包括
 * 照明灯，继电器控制照明灯所在插板电源，实现智能插座，控制照明灯
 * 喂食器，通过导出喂食器手动按钮的接线连接继电器，通过点动模拟手动喂食
+
+<img src="https://raw.githubusercontent.com/robin-debug/arduino_esp32_bigiot_fishtank/master/data/link.jpg">
 
 ## Iot系统选择
 之所以选择 bigiot.net 平台是因为:
