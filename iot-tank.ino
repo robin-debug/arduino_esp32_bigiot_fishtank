@@ -462,27 +462,28 @@ bool uploadCam()
 {
     const char *id = picId;
     struct tm timeinfo;
+    int src = 0, *dst = null;
     if (getLocalTime(&timeinfo))
     {
-        if (lastCamWeek != timeinfo.tm_wday && timeinfo.tm_hour == 12) //在12点执行
+        if (picIdWeek[0] != 0 && lastCamWeek != timeinfo.tm_wday && timeinfo.tm_hour >= 12) //在12点执行
         {
-            lastCamWeek = timeinfo.tm_wday;
+            src = timeinfo.tm_wday;
+            dst = &lastCamWeek;
             id = picIdWeek;
-            SaveCfg();
             Serial.println("Camera Week");
         }
-        else if (lastCamDay != timeinfo.tm_mday && timeinfo.tm_hour == 12) //在12点执行
+        else if (picIdDay[0] != 0 && lastCamDay != timeinfo.tm_mday && timeinfo.tm_hour >= 12) //在12点执行
         {
-            lastCamDay = timeinfo.tm_mday;
+            src = timeinfo.tm_mday;
+            dst = &lastCamDay;
             id = picIdDay;
-            SaveCfg();
             Serial.println("Camera Day");
         }
-        else if (lastCamHour != timeinfo.tm_hour)
+        else if (picIdHour[0] != 0 && lastCamHour != timeinfo.tm_hour)
         {
-            lastCamHour = timeinfo.tm_hour;
+            src = timeinfo.tm_hour;
+            dst = &lastCamHour;
             id = picIdHour;
-            SaveCfg();
             Serial.println("Camera Hour");
         }
     }
@@ -497,9 +498,29 @@ bool uploadCam()
     int len = fb->len;
     if (len > 90 * 1024)
         len = 90 * 1024;
-    bool ok = bigiot.uploadPhoto(id, "jpg", "cam", (uint8_t *)fb->buf, len);
-    Serial.println(ok ? "Upload Success" : "Upload error");
+    bool ok = false;
+    if (CAM_SLEEP > 5)
+    {
+        for (int retry = 0; retry < 5; retry++)
+        {
+            ok = bigiot.uploadPhoto(id, "jpg", "cam", (uint8_t *)fb->buf, len);
+            Serial.println(ok ? "Upload Success" : "Upload error");
+            if (ok)
+                break;
+            delay(500);
+        }
+    }
+    else
+    {
+        ok = bigiot.uploadPhoto(id, "jpg", "cam", (uint8_t *)fb->buf, len);
+        Serial.println(ok ? "Upload Success" : "Upload error");
+    }
     esp_camera_fb_return(fb);
+    if (ok && dst != null)
+    {
+        *dst = src;
+        SaveCfg();
+    }
     return ok;
 }
 
