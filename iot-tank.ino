@@ -133,9 +133,13 @@ void cmdCam(const char *client, const char *comstr)
         setCam(framesize);
         uploadCam(); //第一次没效果
     }
-    bool ok = uploadCam();
+    int res = uploadCam();
     if (client)
-        bigiot.sayToClient(client, ok ? "photo upload!" : "photo fail!");
+    {
+        char msg[128];
+        sprintf(msg,"photo upload %d",res);
+        bigiot.sayToClient(client, msg);
+    }
 }
 
 void cmdTime(const char *client, const char *comstr)
@@ -432,18 +436,14 @@ void setup()
     //Regist platform command event hander
     bigiot.eventAttach(eventCallback);
 
-    // Login to bigiot.net
-    if (!bigiot.login(id, apikey, usrkey))
+    Serial.println("Login to bigiot.net");
+    while (!bigiot.login(id, apikey, usrkey))
     {
-        Serial.println("Login fail");
-        while (1)
-        {
-            digitalWrite(LED_BUILTIN, HIGH);
-            delay(500);
-            digitalWrite(LED_BUILTIN, LOW);
-            Serial.print(".");
-            delay(500);
-        }
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(100);
+        digitalWrite(LED_BUILTIN, LOW);
+        Serial.print(".");
+        delay(500);
     }
     Serial.println("Connected to BIGIOT");
 
@@ -458,11 +458,11 @@ void setup()
     cmdLight(NULL, "X9");
 }
 
-bool uploadCam()
+int uploadCam()
 {
     const char *id = picId;
     struct tm timeinfo;
-    int src = 0, *dst = null;
+    int src = 1, *dst = NULL;
     if (getLocalTime(&timeinfo))
     {
         if (picIdWeek[0] != 0 && lastCamWeek != timeinfo.tm_wday && timeinfo.tm_hour >= 12) //在12点执行
@@ -492,7 +492,7 @@ bool uploadCam()
     if (!fb)
     {
         Serial.println("Camera capture failed");
-        return false;
+        return -1;
     }
     Serial.printf("image len=%d,%d x %d\n", fb->len, fb->width, fb->height);
     int len = fb->len;
@@ -516,12 +516,12 @@ bool uploadCam()
         Serial.println(ok ? "Upload Success" : "Upload error");
     }
     esp_camera_fb_return(fb);
-    if (ok && dst != null)
+    if (ok && dst != NULL)
     {
         *dst = src;
         SaveCfg();
     }
-    return ok;
+    return ok?src:-src;
 }
 
 bool taskCallback(String t) //0700A125
